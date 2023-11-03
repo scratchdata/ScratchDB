@@ -48,3 +48,6 @@ conn_max_lifetime = 3600
 
 [users]
 local = "local"
+
+[datadog]
+datadog_table = "datadog"

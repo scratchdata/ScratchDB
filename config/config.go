@@ -9,6 +9,11 @@ type Config struct {
 	Clickhouse        ClickhouseConfig                  `mapstructure:"clickhouse"`
 	ClickhouseServers map[string]ClickhouseServerConfig `mapstructure:"clickhouse_servers"`
 	UsersJSON         string                            `mapstructure:"users_json"`
+	Datadog           DataDog                            `mapstructure:"datadog"`
+}
+
+type DataDog struct {
+	DatadogTable string `mapstructure:"datadog_table"`
 }
 
 type ClickhouseServerConfig struct {

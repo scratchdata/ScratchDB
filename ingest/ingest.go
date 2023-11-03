@@ -366,6 +366,85 @@ func (i *FileIngest) Query(c *fiber.Ctx) error {
 	return nil
 }
 
+func (i *FileIngest) DataDogIngestion(c *fiber.Ctx) error {
+	if c.QueryBool("debug", false) {
+		rid := ulid.Make().String()
+		log.Println(rid, "Headers", c.GetReqHeaders())
+		log.Println(rid, "Body", string(c.Body()))
+		log.Println(rid, "Query Params", c.Queries())
+	}
+
+	api_key, _ := i.getField("DD-API-KEY", "api_key", "api_key", c)
+	_, ok := i.apiKeys.GetDetailsByKey(api_key)
+	if !ok {
+		return fiber.NewError(fiber.StatusUnauthorized)
+	}
+
+	input := c.Body()
+
+	// Ensure JSON is valid
+	if !json.Valid(input) {
+		return fiber.ErrBadRequest
+	}
+
+	table_name := i.Config.Datadog.DatadogTable
+	data_path := "$"
+
+	root, err := ajson.Unmarshal(input)
+	if err != nil {
+		return fiber.NewError(fiber.StatusBadRequest, err.Error())
+	}
+
+	x, err := root.JSONPath(data_path)
+	if err != nil {
+		return err
+	}
+
+	dir := filepath.Join(i.Config.Ingest.DataDir, api_key, table_name)
+
+	// TODO: make sure this is atomic!
+	writer, ok := i.writers[dir]
+	if !ok {
+		writer = NewFileWriter(
+			dir,
+			i.Config,
+			filepath.Join("data", api_key, table_name),
+			map[string]string{"api_key": api_key, "table_name": table_name},
+		)
+		i.writers[dir] = writer
+	}
+
+	if x[0].Type() == ajson.Array {
+		objects, err := x[0].GetArray()
+		if err != nil {
+			return err
+		}
+		for _, o := range objects {
+				flat, err := flatten.FlattenString(o.String(), "", flatten.UnderscoreStyle)
+				if err != nil {
+					return err
+				}
+				err = writer.Write(flat)
+				if err != nil {
+					log.Println("Unable to write object", flat, err)
+				}
+			}
+	} else if x[0].Type() == ajson.Object {
+			flat, err := flatten.FlattenString(x[0].String(), "", flatten.UnderscoreStyle)
+			if err != nil {
+				return err
+			}
+
+			err = writer.Write(flat)
+			if err != nil {
+				return fiber.NewError(fiber.StatusBadRequest, err.Error())
+			}
+		}
+
+	return c.SendString("ok")
+
+}
+
 func (i *FileIngest) runSSL() {
 
 	// Certificate manager
@@ -409,6 +488,8 @@ func (i *FileIngest) Start() {
 	i.app.Post("/data", i.InsertData)
 	i.app.Get("/query", i.Query)
 	i.app.Post("/query", i.Query)
+	i.app.Post("/datadog/v1/input", i.DataDogIngestion)
+	i.app.Post("/datadog/api/v2/logs", i.DataDogIngestion)
 
 	if i.Config.SSL.Enabled {
 		i.runSSL()
