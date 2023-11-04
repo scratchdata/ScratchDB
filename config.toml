@@ -6,6 +6,9 @@ port = "3000"
 data = "./data/ingest"
 max_age_seconds = 5
 max_size_bytes = 1000000
+
+s3_upload_workers = 5
+compression_method = gzip
 health_check_path = ""
 free_space_required_bytes = 0
 

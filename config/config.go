@@ -49,6 +49,8 @@ type IngestConfig struct {
 
 	HealthCheckPath        string `mapstructure:"health_check_path"`
 	FreeSpaceRequiredBytes int64  `mapstructure:"free_space_required_bytes"`
+	S3UploadWorkers        int    `mapstructure:"s3_upload_workers"`
+	CompressionMethod      string `mapstructure:"compression_method"`
 }
 
 type AWS struct {

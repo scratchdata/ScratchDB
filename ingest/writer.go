@@ -1,7 +1,10 @@
 package ingest
 
 import (
+	"bytes"
+	"compress/gzip"
 	"encoding/json"
+	"io"
 	"log"
 	"os"
 	"path/filepath"
@@ -29,6 +32,15 @@ type FileWriter struct {
 	// Extra metadata associated with each file
 	Tags map[string]string
 
+	// Number of workers for handling concurrent requests
+	S3UploadWorkers int
+
+	// To compress data before writing to a file
+	// "none", "gzip", or "brotli"
+	CompressionMethod string
+
+	AWSConfig config.AWS
+
 	Config *config.Config
 
 	// Current file being written to
@@ -52,19 +64,29 @@ type FileWriter struct {
 
 func NewFileWriter(
 	DataDirectory string,
+
+	MaxAgeSeconds int,
+	MaxSizeBytes int64,
+	AWSConfig config.AWS,
+	S3UploadWorkers int,
+	CompressionMethod string,
 	config *config.Config,
+
 	UploadDirectory string,
 	Tags map[string]string,
 ) *FileWriter {
 	fw := &FileWriter{
-		Client:          client.NewClient(config),
-		DataDirectory:   DataDirectory,
-		Config:          config,
-		ticker:          time.NewTicker(time.Duration(config.Ingest.MaxAgeSeconds) * time.Second),
-		tickerDone:      make(chan bool),
-		pusherDone:      make(chan bool),
-		UploadDirectory: UploadDirectory,
-		Tags:            Tags,
+		Client:            client.NewClient(config),
+		DataDirectory:     DataDirectory,
+		AWSConfig:         AWSConfig,
+		S3UploadWorkers:   S3UploadWorkers,
+		CompressionMethod: CompressionMethod,
+		Config:            config,
+		ticker:            time.NewTicker(time.Duration(config.Ingest.MaxAgeSeconds) * time.Second),
+		tickerDone:        make(chan bool),
+		pusherDone:        make(chan bool),
+		UploadDirectory:   UploadDirectory,
+		Tags:              Tags,
 	}
 
 	closedDir := filepath.Join(fw.DataDirectory, "closed")
@@ -119,6 +141,7 @@ func (f *FileWriter) rotateOnTimer() {
 func (f *FileWriter) uploadS3File(filename string) error {
 	path := filepath.Join(f.DataDirectory, "closed", filename)
 	// log.Println("Uploading", path, "to s3")
+
 	file, err := os.Open(path)
 	if err != nil {
 		log.Printf("os.Open - filename: %s, err: %v", path, err)
@@ -162,8 +185,21 @@ func (f *FileWriter) uploadS3File(filename string) error {
 }
 
 // TODO: Ideally want to have a pool of workers who can upload
+// Implemented:
+// 1. Defined a set of goroutines and dispatched a goroutine for every file upload
+// 2. Pushed the fileName to fileChannel from where the name is passed as input
 func (f *FileWriter) pushFiles() {
 	defer f.wg.Done()
+
+	fileChan := make(chan string)
+
+	var workerWG sync.WaitGroup
+
+	// Start worker goroutines
+	for i := 0; i < f.S3UploadWorkers; i++ {
+		workerWG.Add(1)
+		go f.uploadWorker(fileChan, &workerWG)
+	}
 
 	keepReading := true
 	for keepReading {
@@ -191,24 +227,33 @@ func (f *FileWriter) pushFiles() {
 				log.Println("Unable to get info for file", filename, err)
 			}
 
-			var uploadError error
 			if fileinfo.Size() > 0 {
-				uploadError = f.uploadS3File(e.Name())
-			}
 
-			if uploadError == nil {
-				err = os.Remove(filename)
-				if err != nil {
-					log.Println("Unable to remove file", filename, err)
-				}
-			} else {
-				log.Println(uploadError.Error())
-				log.Fatal(uploadError)
-				log.Println("Unable to upload", uploadError)
+				fileChan <- filename
 			}
 		}
 
 		time.Sleep(1 * time.Second)
+	}
+
+	close(fileChan)
+
+	workerWG.Wait()
+}
+
+func (f *FileWriter) uploadWorker(fileChan <-chan string, wg *sync.WaitGroup) {
+	defer wg.Done()
+
+	for filename := range fileChan {
+		if err := f.uploadS3File(filepath.Base(filename)); err != nil {
+			log.Println(err)
+			log.Fatal(err)
+		}
+
+		// Remove the file after successful upload
+		if err := os.Remove(filename); err != nil {
+			log.Println("Unable to remove file", filename, err)
+		}
 	}
 }
 
@@ -301,10 +346,40 @@ func (f *FileWriter) Write(data string) error {
 		return err
 	}
 
+	var compressedData []byte
+	switch f.CompressionMethod {
+	case "gzip":
+		var buff bytes.Buffer
+		gw := gzip.NewWriter(&buff)
+		_, err := gw.Write([]byte(data + "\n"))
+		if err != nil {
+			log.Println("Failed to compress data using gzip" + err.Error())
+			return err
+		}
+		err = gw.Close()
+		if err != nil {
+			log.Println(err)
+			return err
+		}
+		compressedData = buff.Bytes()
+	case "brotli":
+		// Logic for  brotli compression
+	default:
+		// No compression
+		compressedData = []byte(data + "\n")
+	}
+
 	// write data
-	_, err = f.fd.WriteString(data + "\n")
+	// _, err = f.fd.WriteString(data + "\n")
+	// if err != nil {
+	// 	log.Println(err)
+	// }
+
+	// write data
+	_, err = f.fd.Write(compressedData)
 	if err != nil {
 		log.Println(err)
+		return err
 	}
 
 	return err
@@ -330,4 +405,31 @@ func (f *FileWriter) Close() error {
 	f.wg.Wait()
 
 	return nil
+}
+
+func decompressData(compressedData []byte, compressionType string) (string, error) {
+	var decompressedData string
+	switch compressionType {
+	case "gzip":
+		reader, err := gzip.NewReader(bytes.NewReader(compressedData))
+		if err != nil {
+			log.Println("Error while creating a gzip reader: " + err.Error())
+			return "", err
+		}
+		defer reader.Close()
+		uncompressedData, err := io.ReadAll(reader)
+		if err != nil {
+			log.Println(err)
+			return "", err
+		}
+		decompressedData = string(uncompressedData)
+
+	case "brotli":
+		// Brotli decompression logic
+
+	default:
+		decompressedData = string(compressedData)
+	}
+	return decompressedData, nil
+
 }
