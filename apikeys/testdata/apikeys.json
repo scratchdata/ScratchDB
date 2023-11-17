@@ -1,0 +1,5 @@
+[
+  {"name": "Test User1", "api_key": "testUser1Key", "db_cluster":  "testUser1Cluster", "db_name": "testUser1Db", "db_user":  "testUser1", "db_password": "testUser1Password"},
+  {"name": "Test User2", "api_key": "testUser2Key", "db_cluster":  "testUser2Cluster", "db_name": "testUser2Db", "db_user":  "testUser2", "db_password": "testUser2Password"},
+  {"name": "Test User3", "api_key": "testUser3Key", "db_cluster":  "testUser3Cluster", "db_name": "testUser3Db", "db_user":  "testUser3", "db_password": "testUser3Password"}
+]

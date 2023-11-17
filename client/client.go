@@ -5,13 +5,15 @@ import (
 	"github.com/aws/aws-sdk-go/aws/credentials"
 	"github.com/aws/aws-sdk-go/aws/session"
 	"github.com/aws/aws-sdk-go/service/s3"
+	"github.com/aws/aws-sdk-go/service/s3/s3iface"
 	"github.com/aws/aws-sdk-go/service/sqs"
+	"github.com/aws/aws-sdk-go/service/sqs/sqsiface"
 	"scratchdb/config"
 )
 
 type Client struct {
-	S3  *s3.S3
-	SQS *sqs.SQS
+	S3  s3iface.S3API
+	SQS sqsiface.SQSAPI
 }
 
 func NewClient(c *config.Config) *Client {
