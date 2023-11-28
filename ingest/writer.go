@@ -9,8 +9,8 @@ import (
 	"sync"
 	"time"
 
-	"scratchdb/client"
-	"scratchdb/config"
+	"github.com/scratchdata/scratchdb/client"
+	"github.com/scratchdata/scratchdb/config"
 
 	"github.com/aws/aws-sdk-go/aws"
 	"github.com/aws/aws-sdk-go/service/s3"

@@ -9,13 +9,13 @@ import (
 	"os/signal"
 	"sync"
 
-	"scratchdb/apikeys"
-	"scratchdb/chooser"
-	"scratchdb/config"
-	"scratchdb/importer"
-	"scratchdb/ingest"
-	"scratchdb/servers"
-	"scratchdb/users"
+	"github.com/scratchdata/scratchdb/apikeys"
+	"github.com/scratchdata/scratchdb/chooser"
+	"github.com/scratchdata/scratchdb/config"
+	"github.com/scratchdata/scratchdb/importer"
+	"github.com/scratchdata/scratchdb/ingest"
+	"github.com/scratchdata/scratchdb/servers"
+	"github.com/scratchdata/scratchdb/users"
 
 	"github.com/spf13/viper"
 )

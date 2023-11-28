@@ -7,9 +7,10 @@ import (
 	"fmt"
 	"log"
 	"os"
-	"scratchdb/config"
-	"scratchdb/servers"
 	"text/template"
+
+	"github.com/scratchdata/scratchdb/config"
+	"github.com/scratchdata/scratchdb/servers"
 
 	"github.com/cqroot/prompt"
 	"github.com/cqroot/prompt/multichoose"

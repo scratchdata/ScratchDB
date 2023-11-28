@@ -4,10 +4,10 @@ import (
 	"context"
 	"crypto/tls"
 	"fmt"
-	"scratchdb/config"
-
 	"sync"
 	"time"
+
+	"github.com/scratchdata/scratchdb/config"
 
 	"github.com/ClickHouse/clickhouse-go/v2"
 	"github.com/ClickHouse/clickhouse-go/v2/lib/driver"

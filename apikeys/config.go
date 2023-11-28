@@ -2,7 +2,8 @@ package apikeys
 
 import (
 	"errors"
-	"scratchdb/config"
+
+	"github.com/scratchdata/scratchdb/config"
 )
 
 type APIKeysFromConfig struct {

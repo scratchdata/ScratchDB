@@ -12,11 +12,11 @@ import (
 	"os"
 	"path/filepath"
 
-	"scratchdb/apikeys"
-	"scratchdb/chooser"
-	"scratchdb/config"
-	"scratchdb/servers"
-	"scratchdb/util"
+	"github.com/scratchdata/scratchdb/apikeys"
+	"github.com/scratchdata/scratchdb/chooser"
+	"github.com/scratchdata/scratchdb/config"
+	"github.com/scratchdata/scratchdb/servers"
+	"github.com/scratchdata/scratchdb/util"
 
 	"github.com/gofiber/fiber/v2"
 	"github.com/gofiber/fiber/v2/middleware/logger"

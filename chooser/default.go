@@ -2,8 +2,9 @@ package chooser
 
 import (
 	"errors"
-	"scratchdb/apikeys"
-	"scratchdb/servers"
+
+	"github.com/scratchdata/scratchdb/apikeys"
+	"github.com/scratchdata/scratchdb/servers"
 )
 
 type DefaultChooser struct{}

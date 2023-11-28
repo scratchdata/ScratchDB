@@ -1,4 +1,4 @@
-module scratchdb
+module github.com/scratchdata/scratchdb
 
 go 1.21
 

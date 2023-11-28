@@ -13,12 +13,12 @@ import (
 	"sync"
 	"time"
 
-	"scratchdb/apikeys"
-	"scratchdb/chooser"
-	"scratchdb/client"
-	"scratchdb/config"
-	"scratchdb/servers"
-	"scratchdb/util"
+	"github.com/scratchdata/scratchdb/apikeys"
+	"github.com/scratchdata/scratchdb/chooser"
+	"github.com/scratchdata/scratchdb/client"
+	"github.com/scratchdata/scratchdb/config"
+	"github.com/scratchdata/scratchdb/servers"
+	"github.com/scratchdata/scratchdb/util"
 
 	"github.com/ClickHouse/clickhouse-go/v2/lib/driver"
 	"github.com/aws/aws-sdk-go/aws"

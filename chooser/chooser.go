@@ -1,8 +1,8 @@
 package chooser
 
 import (
-	"scratchdb/apikeys"
-	"scratchdb/servers"
+	"github.com/scratchdata/scratchdb/apikeys"
+	"github.com/scratchdata/scratchdb/servers"
 )
 
 type ServerChooser interface {
