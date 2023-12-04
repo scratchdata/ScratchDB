@@ -46,6 +46,8 @@ type UserConfig struct {
 	DBName     string `mapstructure:"db_name" toml:"db_name"`
 	DBUser     string `mapstructure:"db_user" toml:"db_user"`
 	DBPassword string `mapstructure:"db_password" toml:"db_password"`
+
+	StringOnlyMode bool `mapstructure:"string_only_mode" toml:"string_only_mode"`
 }
 
 type ClickhouseConfig struct {

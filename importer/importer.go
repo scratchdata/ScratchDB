@@ -28,6 +28,7 @@ import (
 	"github.com/aws/aws-sdk-go/service/s3/s3manager"
 	"github.com/aws/aws-sdk-go/service/sqs"
 	"github.com/spyzhov/ajson"
+	"github.com/tidwall/gjson"
 )
 
 type Importer struct {
@@ -149,12 +150,12 @@ func (im *Importer) createTable(server servers.ClickhouseServer, user apikeys.AP
 	return im.executeSQL(server, sql)
 }
 
-func (im *Importer) getColumnsLocal(fileName string) ([]string, error) {
-	keys := make(map[string]bool)
-	rc := make([]string, 0)
+func (im *Importer) getColumnsLocal(fileName string) ([]Column, error) {
+	var columns []Column
+
 	file, err := os.Open(fileName)
 	if err != nil {
-		return rc, err
+		return nil, err
 	}
 	defer file.Close()
 
@@ -164,27 +165,53 @@ func (im *Importer) getColumnsLocal(fileName string) ([]string, error) {
 	scanner.Buffer(buf, maxCapacity)
 
 	for scanner.Scan() {
-		data, err := ajson.Unmarshal([]byte(scanner.Text()))
-		if err != nil {
-			return rc, err
-		}
+		currentJson := scanner.Text()
 
-		nodes, err := data.JSONPath("$")
-		for _, node := range nodes {
-			for _, key := range node.Keys() {
-				keys[key] = true
+		jsonMap := gjson.Get(currentJson, "@this").Map()
+		for k, v := range jsonMap {
+			column := Column{Name: k}
+
+			switch v.Type {
+			case gjson.Null:
+				continue // ignore null values
+			case gjson.False, gjson.True:
+				column.Type = Bool
+			case gjson.Number:
+				column.Type = Float64
+			case gjson.String:
+				// By default, Clickhouse uses a basic parser
+				// for text representation of datetime values
+				isDateTimeStr := false
+				for _, layout := range []string{time.DateTime, time.DateOnly} {
+					if _, err := time.Parse(layout, v.String()); err == nil {
+						isDateTimeStr = true
+						break
+					}
+				}
+				if isDateTimeStr {
+					column.Type = DateTime64
+				} else {
+					column.Type = String
+				}
+			case gjson.JSON:
+				//column.Type = JSON
+				//column.Default = ""
+				fallthrough // do not handle nested objects
+			default:
+				err = fmt.Errorf("unexpected type: %v", v.Type)
+				log.Err(err).Send()
+				return nil, err
 			}
+
+			columns = append(columns, column)
 		}
 	}
 
 	if err := scanner.Err(); err != nil {
-		return rc, err
+		return nil, err
 	}
 
-	for k := range keys {
-		rc = append(rc, k)
-	}
-	return rc, nil
+	return columns, nil
 }
 
 func (im *Importer) getColumns(conn driver.Conn, bucket string, key string) ([]string, error) {
@@ -227,15 +254,24 @@ func (im *Importer) renameColumn(orig string) string {
 	return strings.ReplaceAll(orig, ".", "_")
 }
 
-func (im *Importer) createColumns(server servers.ClickhouseServer, user apikeys.APIKeyDetails, table string, columns []string) error {
-	sql := fmt.Sprintf(`ALTER TABLE "%s"."%s" `, user.GetDBName(), table)
-	columnSql := make([]string, len(columns))
-	for i, column := range columns {
-		columnSql[i] = fmt.Sprintf(`ADD COLUMN IF NOT EXISTS "%s" String`, im.renameColumn(column))
+func (im *Importer) createColumns(
+	server servers.ClickhouseServer,
+	user apikeys.APIKeyDetails,
+	table string,
+	columns []Column,
+) error {
+	query, err := generateAlterColumnQuery(
+		user.GetDBName(),
+		table,
+		columns,
+		user.StringOnlyMode(),
+	)
+	if err != nil {
+		return err
 	}
 
-	sql += strings.Join(columnSql, ", ")
-	return im.executeSQL(server, sql)
+	log.Debug().Str("createColumnsSQL", query).Send()
+	return im.executeSQL(server, query)
 }
 
 func (im *Importer) downloadFile(bucket, key string) (string, error) {
@@ -259,6 +295,30 @@ func (im *Importer) downloadFile(bucket, key string) (string, error) {
 	}
 
 	return localPath, nil
+}
+
+func (im *Importer) insertDataJSONEachRow(server servers.ClickhouseServer, user apikeys.APIKeyDetails, s3Key, table string) error {
+	sql := fmt.Sprintf(`
+		INSERT INTO %s.%s 
+		SELECT
+			*
+		FROM s3('%s/%s/%s', '%s', '%s', 'JSONEachRow')
+		`,
+		user.GetDBName(),
+		table,
+		im.Config.Storage.Endpoint,
+		im.Config.Storage.S3Bucket,
+		s3Key,
+		im.Config.AWS.AccessKeyId,
+		im.Config.AWS.SecretAccessKey,
+	)
+
+	conn, err := server.Connection()
+	if err != nil {
+		return err
+	}
+
+	return conn.Exec(context.Background(), sql)
 }
 
 func (im *Importer) insertDataLocal(server servers.ClickhouseServer, user apikeys.APIKeyDetails, localFile, table string, columns []string) error {
@@ -468,11 +528,12 @@ func (im *Importer) consumeMessages(pid int) {
 		}
 		// 5. Import json data
 		log.Debug().Str("key", key).Msg("Inserting data")
-		err = im.insertDataLocal(server, keyDetails, localPath, table, columns)
-		// err = im.insertData(conn, bucket, key, user, table, columns)
-		if err != nil {
-			log.Err(err).Send()
-			continue
+		if len(columns) > 0 {
+			err = im.insertDataJSONEachRow(server, keyDetails, key, table)
+			if err != nil {
+				log.Err(err).Send()
+				continue
+			}
 		}
 
 		log.Debug().Str("key", key).Msg("Deleting local data post-insert")

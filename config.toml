@@ -24,14 +24,14 @@ secret_access_key = "localstack"
 s3_bucket = "scratch"
 sqs = "scratchq"
 region = "us-east-1"
-endpoint = "http://localhost:4566"
+endpoint = "http://localstack:4566"
 
 [storage]
 access_key_id = "localstack"
 secret_access_key = "localstack"
 s3_bucket = "scratch"
 region = "us-east-1"
-endpoint = "http://localhost:4566"
+endpoint = "http://localstack:4566"
 
 [ssl]
 enabled = false
@@ -54,3 +54,4 @@ api_key = "local"
 db_name = "scratchdb"
 db_user = "scratch"
 db_password = "scratch"
+string_only_mode = false
