@@ -35,11 +35,6 @@ func (a *API) Start() error {
 		log.Fatal().Err(err).Str("path", a.config.DataDir).Msg("Unable to create data ingest directory")
 	}
 
-	err = a.dataTransport.StartProducer()
-	if err != nil {
-		return err
-	}
-
 	err = a.InitializeAPIServer()
 	if err != nil {
 		return err
@@ -51,10 +46,6 @@ func (a *API) Start() error {
 func (a *API) Stop() error {
 	log.Info().Msg("Stopping API")
 	err := a.app.Shutdown()
-	if err != nil {
-		log.Error().Err(err).Msg("failed to stop server")
-	}
-	err = a.dataTransport.StopProducer()
 	if err != nil {
 		log.Error().Err(err).Msg("failed to stop server")
 	}

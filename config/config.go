@@ -67,6 +67,8 @@ type API struct {
 	Port    int    `toml:"port"`
 	DataDir string `toml:"data"`
 
+	Readonly bool `tom:"readonly"`
+
 	// How often to rotate log file
 	MaxAgeSeconds int `toml:"max_age_seconds"`
 
@@ -78,8 +80,10 @@ type API struct {
 }
 
 type Transport struct {
-	Type    string `toml:"type"`
-	Workers int    `toml:"workers"`
+	Type            string `toml:"type"`
+	Workers         int    `toml:"workers"`
+	ProducerEnabled bool   `toml:"producer_enabled"`
+	ConsumerEnabled bool   `toml:"consumer_enabled"`
 
 	QueueStorage QueueStorage `toml:"queue_storage"`
 }

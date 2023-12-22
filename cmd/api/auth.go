@@ -36,3 +36,21 @@ func (a *API) AuthMiddleware(c *fiber.Ctx) error {
 
 	return c.Next()
 }
+
+func (a *API) EnabledMiddleware(c *fiber.Ctx) error {
+	if !a.config.Enabled {
+		return c.SendStatus(fiber.StatusServiceUnavailable)
+	}
+	// if uploads are not enabled, block POST requests
+	if !a.dataTransport.ProducerEnabled() && c.Method() == fiber.MethodPost {
+		return c.SendStatus(fiber.StatusMethodNotAllowed)
+	}
+	return c.Next()
+}
+
+func (a *API) ReadonlyMiddleware(c *fiber.Ctx) error {
+	if a.config.Readonly && c.Method() == fiber.MethodPost {
+		return c.SendStatus(fiber.StatusMethodNotAllowed)
+	}
+	return c.Next()
+}

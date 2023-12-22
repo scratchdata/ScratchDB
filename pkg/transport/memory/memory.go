@@ -2,6 +2,7 @@ package memory
 
 import (
 	"bytes"
+	"scratchdata/config"
 	"scratchdata/pkg/database"
 	"scratchdata/pkg/destinations"
 	"sync"
@@ -22,6 +23,8 @@ type MemoryTransport struct {
 
 	data chan Message
 	db   database.Database
+
+	conf config.Transport
 }
 
 type Message struct {
@@ -29,7 +32,7 @@ type Message struct {
 	Data           []byte
 }
 
-func NewMemoryTransport(db database.Database) *MemoryTransport {
+func NewMemoryTransport(db database.Database, conf config.Transport) *MemoryTransport {
 	rc := &MemoryTransport{
 		buffers: make(map[string]map[string]*bytes.Buffer),
 		ticker:  time.NewTicker(5 * time.Second),
@@ -38,6 +41,10 @@ func NewMemoryTransport(db database.Database) *MemoryTransport {
 	}
 
 	return rc
+}
+
+func (s *MemoryTransport) ProducerEnabled() bool {
+	return s.conf.ProducerEnabled
 }
 
 func (s *MemoryTransport) StartProducer() error {
@@ -72,6 +79,10 @@ func (s *MemoryTransport) Write(databaseConnectionId string, table string, data 
 	buf.WriteByte('\n')
 
 	return nil
+}
+
+func (s *MemoryTransport) ConsumerEnabled() bool {
+	return s.conf.ConsumerEnabled
 }
 
 func (s *MemoryTransport) StartConsumer() error {

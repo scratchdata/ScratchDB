@@ -104,7 +104,7 @@ func main() {
 
 	switch config.Transport.Type {
 	case "memory":
-		dataTransport = memory.NewMemoryTransport(db)
+		dataTransport = memory.NewMemoryTransport(db, config.Transport)
 	case "queuestorage":
 		dataTransport = queuestorage.NewQueueStorageTransport(queuestorage.QueueStorageParam{
 			Queue:   queueBackend,
@@ -125,17 +125,19 @@ func main() {
 
 	// go dataTransport.StartProducer()
 
-	go func() {
-		if err := dataTransport.StartConsumer(); err != nil {
-			// TODO: find a cleaner way to handle this.
-			// if the consumer fails to start, we want to shutdown
-			// but we can't call Fatal() because it kills the process
-			// and potentially leaves the producer, etc. in an inconsistent state
-			//
-			// cancelling ctx would be good, but at the moment the API crashes when calling stop()
-			log.Error().Err(err).Msg("Cannot start consumer")
-		}
-	}()
+	if err := dataTransport.StartProducer(); err != nil {
+		log.Error().Err(err).Msg("Cannot start producer")
+	}
+
+	if err := dataTransport.StartConsumer(); err != nil {
+		// TODO: find a cleaner way to handle this.
+		// if the consumer fails to start, we want to shutdown
+		// but we can't call Fatal() because it kills the process
+		// and potentially leaves the producer, etc. in an inconsistent state
+		//
+		// cancelling ctx would be good, but at the moment the API crashes when calling stop()
+		log.Error().Err(err).Msg("Cannot start consumer")
+	}
 
 	commands := make([]cmd.Command, 0)
 	if config.API.Enabled {
@@ -160,9 +162,9 @@ func main() {
 		for _, command := range commands {
 			command.Stop()
 		}
-
-		// dataTransport.StopProducer()
-
+		if err := dataTransport.StopProducer(); err != nil {
+			log.Info().Err(err).Msg("Cannot stop producer")
+		}
 		if err := dataTransport.StopConsumer(); err != nil {
 			log.Info().Err(err).Msg("Cannot stop consumer")
 		}

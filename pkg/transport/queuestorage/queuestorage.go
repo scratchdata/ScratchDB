@@ -37,6 +37,9 @@ type QueueStorageParam struct {
 	DequeueTimeout         time.Duration
 	FreeSpaceRequiredBytes uint64
 	Workers                int
+
+	ProducerEnable  bool
+	ConsumerEnabled bool
 }
 
 type QueueStorage struct {
@@ -48,6 +51,9 @@ type QueueStorage struct {
 	Workers                int
 	DequeueTimeout         time.Duration
 	FreeSpaceRequiredBytes uint64
+
+	producerEnable  bool
+	consumerEnabled bool
 
 	fws         map[string]*FileWriter
 	fwsMu       sync.Mutex
@@ -74,9 +80,16 @@ func NewQueueStorageTransport(param QueueStorageParam) *QueueStorage {
 		DequeueTimeout:         param.DequeueTimeout,
 		FreeSpaceRequiredBytes: param.FreeSpaceRequiredBytes,
 		Workers:                param.Workers,
+
+		producerEnable:  param.ProducerEnable,
+		consumerEnabled: param.ConsumerEnabled,
 	}
 
 	return rc
+}
+
+func (s *QueueStorage) ProducerEnabled() bool {
+	return s.producerEnable
 }
 
 func (s *QueueStorage) StartProducer() error {
@@ -129,6 +142,10 @@ func (s *QueueStorage) Write(databaseConnectionId string, table string, data []b
 	}
 
 	return nil
+}
+
+func (s *QueueStorage) ConsumerEnabled() bool {
+	return s.consumerEnabled
 }
 
 func (s *QueueStorage) StartConsumer() error {
