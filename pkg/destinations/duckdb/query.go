@@ -1,7 +1,6 @@
 package duckdb
 
 import (
-	"database/sql"
 	"io"
 	"scratchdata/util"
 )
@@ -9,15 +8,7 @@ import (
 func (s *DuckDBServer) QueryJSON(query string, writer io.Writer) error {
 	sanitized := util.TrimQuery(query)
 
-	connector, err := s.getConnector()
-	if err != nil {
-		return err
-	}
-
-	db := sql.OpenDB(connector)
-	defer db.Close()
-
-	rows, err := db.Query("DESCRIBE " + sanitized)
+	rows, err := s.db.Query("DESCRIBE " + sanitized)
 	if err != nil {
 		return err
 	}
@@ -40,7 +31,7 @@ func (s *DuckDBServer) QueryJSON(query string, writer io.Writer) error {
 
 	rows.Close()
 
-	rows, err = db.Query("SELECT to_json(COLUMNS(*)) FROM (" + sanitized + ")")
+	rows, err = s.db.Query("SELECT to_json(COLUMNS(*)) FROM (" + sanitized + ")")
 	if err != nil {
 		return err
 	}

@@ -89,9 +89,14 @@ func (s *MemoryTransport) StartConsumer() error {
 					for tableName, buf := range tables {
 						if buf.Len() > 0 {
 							connInfo := s.db.GetDatabaseConnection(dbID)
-							conn := destinations.GetDestination(connInfo)
+							conn, err := destinations.GetDestination(connInfo)
+							if err != nil {
+								log.Error().Err(err).Bytes("data", buf.Bytes()).Str("db", dbID).Str("table", tableName).Msg("Unable to get Destination")
+								buf.Reset()
+								continue
+							}
 							r := bytes.NewReader(buf.Bytes())
-							err := conn.InsertBatchFromNDJson(tableName, r)
+							err = conn.InsertBatchFromNDJson(tableName, r)
 							if err != nil {
 								log.Error().Err(err).Bytes("data", buf.Bytes()).Str("db", dbID).Str("table", tableName).Msg("Unable to save data to db")
 							}

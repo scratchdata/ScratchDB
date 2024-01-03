@@ -1,7 +1,6 @@
 package duckdb
 
 import (
-	"database/sql"
 	"fmt"
 	"io"
 	"scratchdata/util"
@@ -10,18 +9,18 @@ import (
 	"github.com/rs/zerolog/log"
 )
 
-func (s *DuckDBServer) createTable(table string, db *sql.DB) error {
+func (s *DuckDBServer) createTable(table string) error {
 	sql := fmt.Sprintf("CREATE TABLE IF NOT EXISTS \"%s\" (__row_id STRING)", table)
-	_, err := db.Exec(sql)
+	_, err := s.db.Exec(sql)
 	return err
 }
 
-func (s *DuckDBServer) createColumns(table string, jsonTypes map[string]string, db *sql.DB) error {
+func (s *DuckDBServer) createColumns(table string, jsonTypes map[string]string) error {
 	for colName, jsonType := range jsonTypes {
 
 		// TODO: Should we specify defaults, or just use null as default?
 		sql := fmt.Sprintf("ALTER TABLE \"%s\" ADD COLUMN IF NOT EXISTS \"%s\" %s", table, colName, jsonToDuck[jsonType])
-		_, err := db.Exec(sql)
+		_, err := s.db.Exec(sql)
 		if err != nil {
 			return err
 		}
@@ -32,12 +31,12 @@ func (s *DuckDBServer) createColumns(table string, jsonTypes map[string]string, 
 	return nil
 }
 
-func (s *DuckDBServer) describeTable(table string, db *sql.DB) ([]string, map[string]string, error) {
+func (s *DuckDBServer) describeTable(table string) ([]string, map[string]string, error) {
 	duckColumns := []string{}
 	duckdbColTypes := make(map[string]string)
 
 	sql := fmt.Sprintf("DESCRIBE \"%s\"", table)
-	rows, err := db.Query(sql)
+	rows, err := s.db.Query(sql)
 	if err != nil {
 		return duckColumns, duckdbColTypes, err
 	}
@@ -60,7 +59,7 @@ func (s *DuckDBServer) describeTable(table string, db *sql.DB) ([]string, map[st
 	return duckColumns, duckdbColTypes, err
 }
 
-func (s *DuckDBServer) insertFromS3(table string, tempFile string, db *sql.DB) error {
+func (s *DuckDBServer) insertFromS3(table string, tempFile string) error {
 	sql := fmt.Sprintf(`
 		INSERT INTO "%s" 
 		BY NAME
@@ -72,7 +71,7 @@ func (s *DuckDBServer) insertFromS3(table string, tempFile string, db *sql.DB) e
 		table, s.Bucket, tempFile, s.Region, s.AccessKeyId, s.SecretAccessKey, s.Endpoint,
 	)
 
-	_, err := db.Exec(sql)
+	_, err := s.db.Exec(sql)
 	return err
 }
 
@@ -84,23 +83,12 @@ func (s *DuckDBServer) InsertBatchFromNDJson(table string, input io.ReadSeeker) 
 		return err
 	}
 
-	connector, err := s.getConnector()
+	err = s.createTable(table)
 	if err != nil {
 		return err
 	}
 
-	db := sql.OpenDB(connector)
-	if err != nil {
-		return err
-	}
-	defer db.Close()
-
-	err = s.createTable(table, db)
-	if err != nil {
-		return err
-	}
-
-	err = s.createColumns(table, jsonTypes, db)
+	err = s.createColumns(table, jsonTypes)
 	if err != nil {
 		return err
 	}
@@ -119,7 +107,7 @@ func (s *DuckDBServer) InsertBatchFromNDJson(table string, input io.ReadSeeker) 
 		return err
 	}
 
-	err = s.insertFromS3(table, tempFile, db)
+	err = s.insertFromS3(table, tempFile)
 	if err != nil {
 		return err
 	}

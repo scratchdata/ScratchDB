@@ -15,14 +15,7 @@ var (
 	// selectStarFromPat matches the query `select * from (table)`
 	selectStarFromPat = regexp.MustCompile(`(?i)^select\s+[*]\s+from\s+(\w+)$`)
 
-	// destinations.GetDestination returns a new object each time - so any data inserted, gets discarded
-	// store the data as a singleton at least for now so we can query it later
-	tables = struct {
-		sync.Mutex
-		m map[string][]json.RawMessage
-	}{
-		m: map[string][]json.RawMessage{},
-	}
+	ErrClosed = errors.New("server is closed")
 )
 
 // MemoryDBServer implements an in-memory database server
@@ -30,12 +23,20 @@ var (
 // NOTE: All instances share the same backing store.
 type MemoryDBServer struct {
 	UseAllCaps bool `mapstructure:"all_caps"`
+
+	mu     sync.RWMutex
+	tables map[string][]json.RawMessage
+	closed bool
 }
 
 // InsertBatchFromNDJson implements destinations.DatabaseServer.InsertBatchFromNDJson
-func (m MemoryDBServer) InsertBatchFromNDJson(table string, r io.ReadSeeker) error {
-	tables.Lock()
-	defer tables.Unlock()
+func (m *MemoryDBServer) InsertBatchFromNDJson(table string, r io.ReadSeeker) error {
+	m.mu.Lock()
+	defer m.mu.Unlock()
+
+	if m.closed {
+		return ErrClosed
+	}
 
 	dec := json.NewDecoder(r)
 	for {
@@ -43,10 +44,10 @@ func (m MemoryDBServer) InsertBatchFromNDJson(table string, r io.ReadSeeker) err
 		err := dec.Decode(&data)
 		switch {
 		case err == nil:
-			tables.m[table] = append(tables.m[table], data)
+			m.tables[table] = append(m.tables[table], data)
 			log.Debug().
 				Str("table", table).
-				Int("rows", len(tables.m[table])).
+				Int("rows", len(m.tables[table])).
 				Bytes("data", data).
 				Msg("MemoryDBServer: Inserterting")
 		case errors.Is(err, io.EOF):
@@ -65,12 +66,16 @@ func (m MemoryDBServer) InsertBatchFromNDJson(table string, r io.ReadSeeker) err
 //
 // If the query is `select * from $table` all rows inserted into $table will be returned
 // Otherwise, if UseAllCaps is true, `[{"HELLO":"WORLD"}]` is returned
-// Otherwise, `[{"hello":"world"}]` or
-func (m MemoryDBServer) QueryJSON(query string, w io.Writer) error {
+// Otherwise, `[{"hello":"world"}]` is returned
+func (m *MemoryDBServer) QueryJSON(query string, w io.Writer) error {
 	query = util.TrimQuery(query)
 
-	tables.Lock()
-	defer tables.Unlock()
+	m.mu.RLock()
+	defer m.mu.RUnlock()
+
+	if m.closed {
+		return ErrClosed
+	}
 
 	rows := []json.RawMessage{}
 	table := ""
@@ -78,7 +83,7 @@ func (m MemoryDBServer) QueryJSON(query string, w io.Writer) error {
 	switch {
 	case len(selectFrom) == 2:
 		table = selectFrom[1]
-		rows = append(rows, tables.m[table]...)
+		rows = append(rows, m.tables[table]...)
 	case m.UseAllCaps:
 		rows = append(rows, json.RawMessage(`{"HELLO":"WORLD"}`))
 	default:
@@ -91,7 +96,7 @@ func (m MemoryDBServer) QueryJSON(query string, w io.Writer) error {
 	}
 
 	var tableNames []string
-	for k := range tables.m {
+	for k := range m.tables {
 		tableNames = append(tableNames, k)
 	}
 
@@ -105,4 +110,25 @@ func (m MemoryDBServer) QueryJSON(query string, w io.Writer) error {
 		Err(err).
 		Msg("MemoryDBServer: Querying")
 	return err
+}
+
+// Close implements destinations.DatabaseServer.Close
+//
+// On subsequent calls to close, ErrClosed is returned
+func (m *MemoryDBServer) Close() error {
+	m.mu.Lock()
+	defer m.mu.Unlock()
+
+	if m.closed {
+		return ErrClosed
+	}
+	m.closed = true
+	return nil
+}
+
+// OpenServer returns a new initialized MemoryDBServer
+func OpenServer(settings map[string]any) *MemoryDBServer {
+	db := util.ConfigToStruct[MemoryDBServer](settings)
+	db.tables = map[string][]json.RawMessage{}
+	return db
 }

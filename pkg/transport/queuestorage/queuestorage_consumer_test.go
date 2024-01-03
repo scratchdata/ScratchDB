@@ -7,12 +7,16 @@ import (
 	"time"
 
 	"scratchdata/models"
-	memDest "scratchdata/pkg/destinations/memory"
+	"scratchdata/pkg/destinations"
 	memFS "scratchdata/pkg/filestore/memory"
 	memQ "scratchdata/pkg/queue/memory"
+
+	"github.com/oklog/ulid/v2"
 )
 
-type testDB struct{}
+type testDB struct {
+	Conn models.DatabaseConnection
+}
 
 func (d testDB) Open() error { return nil }
 
@@ -24,26 +28,38 @@ func (d testDB) GetAPIKeyDetails(hashedKey string) models.APIKey { return models
 
 func (d testDB) GetAccount(id string) models.Account { return models.Account{} }
 
-func (d testDB) GetDatabaseConnections(accountID string) []models.DatabaseConnection { return nil }
+func (d testDB) GetDatabaseConnections(accountID string) []models.DatabaseConnection {
+	return []models.DatabaseConnection{d.Conn}
+}
 
 func (d testDB) GetDatabaseConnection(connectionID string) models.DatabaseConnection {
-	return models.DatabaseConnection{ID: "test", Type: "memory"}
+	return d.Conn
 }
 
 func (d testDB) HealthCheck() error { return nil }
 
 func TestQueueStorageTransportConsumer(t *testing.T) {
+	db := testDB{
+		Conn: models.DatabaseConnection{
+			ID:   ulid.Make().String(),
+			Type: "memory",
+		},
+	}
+	dbSrv, err := destinations.GetDestination(db.Conn)
+	if err != nil {
+		t.Fatal(err)
+	}
+
 	queue := memQ.NewQueue()
 	store := memFS.NewStorage()
-	dbsrv := memDest.MemoryDBServer{}
 	param := QueueStorageParam{
 		Queue:                  queue,
 		Storage:                store,
-		DB:                     testDB{},
+		DB:                     db,
 		ConsumerDataDir:        t.TempDir(),
 		DequeueTimeout:         10 * time.Millisecond,
 		FreeSpaceRequiredBytes: 100 << 20,
-		Workers:                1,
+		Workers:                4,
 	}
 
 	qs := NewQueueStorageTransport(param)
@@ -52,7 +68,7 @@ func TestQueueStorageTransportConsumer(t *testing.T) {
 	table := "tbl"
 	queueMsg, err := json.Marshal(models.FileUploadMessage{
 		Path:  path,
-		Key:   "test",
+		Key:   db.Conn.ID,
 		Table: table,
 	})
 	expectRes := []byte(`[{"data":"hello world"}]`)
@@ -76,7 +92,7 @@ func TestQueueStorageTransportConsumer(t *testing.T) {
 		// wait for data to be processed. it's all in-memory so shouldn't take long
 		time.Sleep(50 * time.Millisecond)
 
-		err := dbsrv.QueryJSON(`select * from tbl`, queryRes)
+		err := dbSrv.QueryJSON(`select * from tbl`, queryRes)
 		if err != nil {
 			t.Errorf("Cannot query db: %s", err)
 			break

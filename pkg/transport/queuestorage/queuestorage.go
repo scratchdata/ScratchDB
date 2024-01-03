@@ -179,9 +179,9 @@ func (s *QueueStorage) insertMessage(msg models.FileUploadMessage) (retErr error
 		return fmt.Errorf("QueueStorage.insertMessage: Cannot get database connection for '%s'", dbID)
 	}
 
-	dest := destinations.GetDestination(conn)
-	if dest == nil {
-		return fmt.Errorf("QueueStorage.insertMessage: Cannot get destination for '%s/%s'", dbID, conn.ID)
+	dest, err := destinations.GetDestination(conn)
+	if err != nil {
+		return fmt.Errorf("QueueStorage.insertMessage: Cannot get destination for '%s/%s': %w", dbID, conn.ID, err)
 	}
 
 	fn := filepath.Join(s.ConsumerDataDir, filepath.Base(msg.Path))

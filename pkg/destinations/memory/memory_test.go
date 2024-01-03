@@ -13,7 +13,7 @@ func TestMemoryDBServer(t *testing.T) {
 	tblOutput := []byte(`[{"msg1":"hello"},{"msg2":"world"}]`)
 	defOutput := []byte(`[{"hello":"world"}]`)
 	noOutput := []byte(`[]`)
-	dest := MemoryDBServer{}
+	dest := OpenServer(nil)
 
 	if err := dest.InsertBatchFromNDJson("tbl", bytes.NewReader(tblInput)); err != nil {
 		t.Fatalf("Insert failed: %s", err)

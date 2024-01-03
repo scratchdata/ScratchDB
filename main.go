@@ -12,6 +12,7 @@ import (
 	"scratchdata/cmd/api"
 	"scratchdata/config"
 	"scratchdata/pkg/database"
+	"scratchdata/pkg/destinations"
 	"scratchdata/pkg/filestore"
 	dummystore "scratchdata/pkg/filestore/dummy"
 	memorystore "scratchdata/pkg/filestore/memory"
@@ -165,6 +166,10 @@ func main() {
 
 		if err := dataTransport.StopConsumer(); err != nil {
 			log.Info().Err(err).Msg("Cannot stop consumer")
+		}
+
+		if err := destinations.ClearCache(); err != nil {
+			log.Info().Err(err).Msg("Cannot close database servers")
 		}
 	}
 }

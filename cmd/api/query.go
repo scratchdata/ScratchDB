@@ -34,16 +34,14 @@ func (i *API) Query(c *fiber.Ctx) error {
 	}
 
 	// TODO: need some sort of local connection pool or storage
-	connection := destinations.GetDestination(connectionSetting)
-	if connection == nil {
+	connection, err := destinations.GetDestination(connectionSetting)
+	if err != nil {
 		return errors.New("Destination " + connectionSetting.Type + " does not exist")
 	}
 
 	// TODO: use a buffered pipe of some sort to stream results
 	// https://github.com/gofiber/fiber/issues/1034
 	// https://stackoverflow.com/questions/68778961/how-to-configure-the-buffer-size-for-http-responsewriter
-
-	var err error
 
 	switch c.Query("format", "json") {
 	case "json":

@@ -117,16 +117,7 @@ func (s *ClickhouseServer) createColumnsWithTypes(table string, columns map[stri
 
 	log.Trace().Msg(sql)
 
-	// Get clickhouse server conn
-	conn, err := s.createConn()
-	if err != nil {
-		return err
-	}
-	defer conn.Close()
-
-	err = conn.Exec(context.TODO(), sql)
-
-	return err
+	return s.conn.Exec(context.TODO(), sql)
 }
 
 func (s *ClickhouseServer) getClickhouseTypes(table string) (map[string]string, error) {
@@ -245,15 +236,8 @@ func (s *ClickhouseServer) insertData(file io.ReadSeeker, table string, columns 
 	}
 	// defer file.Close()
 
-	// Get clickhouse server conn
-	conn, err := s.createConn()
-	if err != nil {
-		return err
-	}
-	defer conn.Close()
-
 	// Begin batch
-	batch, err := conn.PrepareBatch(context.Background(), insertSql)
+	batch, err := s.conn.PrepareBatch(context.Background(), insertSql)
 	if err != nil {
 		log.Err(err).Msg("unable to initiate batch query")
 		return err
