@@ -2,7 +2,9 @@ package clickhouse
 
 import (
 	"bufio"
+	"errors"
 	"io"
+	"scratchdata/models/postgrest"
 	"scratchdata/util"
 )
 
@@ -52,4 +54,8 @@ func (s *ClickhouseServer) QueryJSON(query string, writer io.Writer) error {
 	writer.Write([]byte("]"))
 
 	return nil
+}
+
+func (c *ClickhouseServer) QueryPostgrest(query postgrest.Postgrest, w io.Writer) error {
+	return errors.New("Not implemented")
 }

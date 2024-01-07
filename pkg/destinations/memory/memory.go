@@ -5,6 +5,7 @@ import (
 	"errors"
 	"io"
 	"regexp"
+	"scratchdata/models/postgrest"
 	"scratchdata/util"
 	"sync"
 
@@ -105,4 +106,8 @@ func (m MemoryDBServer) QueryJSON(query string, w io.Writer) error {
 		Err(err).
 		Msg("MemoryDBServer: Querying")
 	return err
+}
+
+func (m MemoryDBServer) QueryPostgrest(query postgrest.Postgrest, w io.Writer) error {
+	return errors.New("Not implemented")
 }

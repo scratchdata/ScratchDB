@@ -28,6 +28,9 @@ func (a *API) InitializeAPIServer() error {
 	a.app.Get("/tables", a.AuthMiddleware, a.Tables)
 	a.app.Post("/data", a.AuthMiddleware, a.Insert)
 
+	postgrest := a.app.Group("/postgrest")
+	postgrest.Get("/:table", a.AuthMiddleware, a.PostgrestQuery)
+
 	err := app.Listen(fmt.Sprintf(":%d", a.config.Port))
 	if err != nil {
 		return err

@@ -2,7 +2,9 @@ package duckdb
 
 import (
 	"database/sql"
+	"errors"
 	"io"
+	"scratchdata/models/postgrest"
 	"scratchdata/util"
 )
 
@@ -99,4 +101,8 @@ func (s *DuckDBServer) QueryJSON(query string, writer io.Writer) error {
 	writer.Write([]byte("]"))
 
 	return nil
+}
+
+func (s *DuckDBServer) QueryPostgrest(query postgrest.Postgrest, w io.Writer) error {
+	return errors.New("Not implemented")
 }

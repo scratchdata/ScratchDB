@@ -1,0 +1,81 @@
+package postgrest
+
+type PostgrestParser Peg {}
+
+QueryString <- QueryParam? ('&' QueryParam)* END
+
+QueryParam <- Limit / Offset / Order / Select / LogicalQuery / Filter
+
+LogicalQuery <- LogicalOperator '=' FilterList
+FilterList <- '(' FilterExpression (',' FilterExpression)* ')'
+FilterExpression <- LogicalFilter / ColumnName '.' Predicate
+LogicalFilter <- LogicalOperator FilterList
+LogicalOperator <- Not? BinaryOperator
+BinaryOperator <- 'and' / 'or'
+
+Select <- 'select' '=' SelectOptions
+SelectOptions <- SelectOption (',' SelectOption)*
+SelectOption <- Renamed ':' (SelectCount / SelectColumn) '::' Cast
+              / Renamed ':' (SelectCount / SelectColumn)
+              / (SelectCount / SelectColumn) '::' Cast
+              / (SelectCount / SelectColumn)
+
+SelectColumn <- ColumnName ('::' Cast)? '.' Aggregation '(' AggregationOption? ')'
+              / ColumnName
+
+Aggregation <- [^=&,.:()]+
+AggregationOption <- [^=&,.:()]+
+
+SelectCount <- 'count()'
+Renamed <- ColumnName
+Cast <- [^=&,.:]+
+
+Limit <- 'limit' '=' Integer
+Offset <- 'offset' '=' Integer
+Order <- 'order' '=' OrderOptions
+Filter <- ColumnName '=' Predicate
+
+# Order by clause is a list of columns, along with an optional direction (asc, desc) 
+# and an optional treatment of nulls (nullsfirst, nullslast)
+OrderOptions <- OrderOption (',' OrderOption)*
+
+OrderOption <- ColumnName '.' OrderDirection '.' NullDirection
+             / ColumnName '.' (OrderDirection / NullDirection) 
+             / ColumnName
+
+ColumnName <- QuotedString / [^=&,.:()]+
+OrderDirection <- 'asc' / 'desc'
+NullDirection <- 'nullsfirst' / 'nullslast'
+
+# A filter on a column. Has many components:
+# Starts with an optional "not" for negation
+# Then an operator by an operator (eq, neq, ...) 
+# Optional (any) or (all)
+# Then an operand: either a scalar, a vector (1,2,3), or a list {1,2,3}
+Predicate <- Not? ((Operator '.' Operand) / (Operator '(' AnyAll ')' '.' ListOperand)) 
+
+Not <- 'not.' 
+
+Operator <- [a-zA-Z]+
+
+AnyAll <- 'any' / 'all' 
+
+# An operand can either be a list of values (1,2,3) or a scalar
+Operand <- VectorOperand / ScalarOperand
+
+ListOperand <- '{' ListOperandItem (',' ListOperandItem)* '}'
+ListOperandItem <- QuotedString / [^,}&=]+
+
+VectorOperand <- '(' VectorOperandItem (',' VectorOperandItem)* ')'
+
+# A list item can either be a quoted string with escape characters, or unquoted
+VectorOperandItem <- QuotedString / [^,)&=]+ 
+
+QuotedString <- '"' (EscapedChar / [^"&=] )* '"' 
+EscapedChar <- '\\' .
+
+ScalarOperand <- [^&=,(){}]+
+
+Integer <- [0-9]+
+
+END <- !.
